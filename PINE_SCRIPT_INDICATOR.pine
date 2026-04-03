@@ -207,8 +207,9 @@ bgcolor(bg_color, title="Zona Gamma Flip")
 // ─────────────────────────────────────────────
 
 // Alertas de confluencia (3+ condiciones cumplidas simultaneamente)
-alertcondition(bull_trigger, "CONFLUENCIA ALCISTA", "ALCISTA {{ticker}} — Score " + str.tostring(bull_score) + "/4 | Precio: {{close}} | GammaFlip: " + gamma_flip_str + " | PutWall: " + put_wall_str)
-alertcondition(bear_trigger, "CONFLUENCIA BAJISTA", "BAJISTA {{ticker}} — Score " + str.tostring(bear_score) + "/4 | Precio: {{close}} | GammaFlip: " + gamma_flip_str + " | CallWall: " + call_wall_str)
+// Nota: alertcondition requiere string constante en Pine v6 — los valores dinamicos van en el titulo de la alerta
+alertcondition(bull_trigger, "CONFLUENCIA ALCISTA", "ALCISTA {{ticker}} — Precio: {{close}} | Confluencia de niveles de opciones BULLISH activa")
+alertcondition(bear_trigger, "CONFLUENCIA BAJISTA", "BAJISTA {{ticker}} — Precio: {{close}} | Confluencia de niveles de opciones BEARISH activa")
 
 // Alertas de cruce del Gamma Flip (cambio de regimen)
 alertcondition(cross_above_gf, "Rompe Gamma Flip Arriba", "{{ticker}} ROMPE el Gamma Flip al ALZA en {{close}} — Dealers pasan a comprar dips")
