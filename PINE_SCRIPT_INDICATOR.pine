@@ -26,14 +26,21 @@ line_style_input = input.string("solid", "Estilo de Linea", options=["solid","da
 conf_pct         = input.float(0.3, "Proximidad a nivel (%)", minval=0.05, maxval=2.0, step=0.05, group="Confluencia")
 
 // ─────────────────────────────────────────────
-// LEER DATA DESDE GITHUB
+// LEER DATA DESDE PINE SEEDS (GitHub)
 // ─────────────────────────────────────────────
+// Repo: seed_rikoinvestfg-collab_optionflow
+// CSV format: YYYYMMDDT,open,high,low,close,volume
+// Mapping: open=GammaFlip, high=MaxPain, low=PutWall, close=CallWall
+//
+// TradingView symbol: SEED_RIKOINVESTFG_COLLAB_OPTIONFLOW:TSLA
+// ─────────────────────────────────────────────
+
 sym = syminfo.ticker
 
-gamma_flip = str.tonumber(request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "gamma_flip"))
-max_pain   = str.tonumber(request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "max_pain"))
-call_wall  = str.tonumber(request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "call_wall"))
-put_wall   = str.tonumber(request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "put_wall"))
+gamma_flip = request.seed("seed_rikoinvestfg-collab_optionflow", sym, open)
+max_pain   = request.seed("seed_rikoinvestfg-collab_optionflow", sym, high)
+put_wall   = request.seed("seed_rikoinvestfg-collab_optionflow", sym, low)
+call_wall  = request.seed("seed_rikoinvestfg-collab_optionflow", sym, close)
 
 // ─────────────────────────────────────────────
 // LOGICA DE CONFLUENCIA
