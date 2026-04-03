@@ -1,2 +1,2 @@
-timestamp,gamma_flip,max_pain,call_wall,put_wall
-2026-04-03T16:48:42,71,70,75,68
+timestamp,gamma_flip,max_pain,call_wall,put_wall,signal,confidence
+2026-04-03T16:50:30,71,72,75,68,ALCISTA,72
