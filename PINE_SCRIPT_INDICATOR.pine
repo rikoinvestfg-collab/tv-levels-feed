@@ -1,0 +1,186 @@
+// ============================================================
+// OptionFlow Key Levels — by rikoinvestfg
+// Gamma Flip | Max Pain | Call Wall | Put Wall
+// Data auto-updated every 5 min from OptionFlow Dashboard
+// Compatible: TradingView Premium (request.seed required)
+// ============================================================
+//@version=5
+indicator(title="OptionFlow Key Levels", shorttitle="OFL", overlay=true, max_lines_count=10, max_labels_count=50)
+
+// ─────────────────────────────────────────────
+// INPUTS
+// ─────────────────────────────────────────────
+show_gamma_flip  = input.bool(true,  "Mostrar Gamma Flip",  group="Niveles")
+show_max_pain    = input.bool(true,  "Mostrar Max Pain",    group="Niveles")
+show_call_wall   = input.bool(true,  "Mostrar Call Wall",   group="Niveles")
+show_put_wall    = input.bool(true,  "Mostrar Put Wall",    group="Niveles")
+show_table       = input.bool(true,  "Mostrar Tabla",       group="Tabla")
+table_position   = input.string("top_right", "Posición Tabla", options=["top_right","top_left","bottom_right","bottom_left"], group="Tabla")
+
+col_gamma_flip   = input.color(color.new(#FF9800, 0),  "Color Gamma Flip",  group="Colores")
+col_max_pain     = input.color(color.new(#E91E63, 0),  "Color Max Pain",    group="Colores")
+col_call_wall    = input.color(color.new(#00BCD4, 0),  "Color Call Wall",   group="Colores")
+col_put_wall     = input.color(color.new(#F44336, 0),  "Color Put Wall",    group="Colores")
+line_width       = input.int(2, "Grosor de Líneas", minval=1, maxval=4, group="Estilo")
+line_style_input = input.string("solid", "Estilo de Línea", options=["solid","dashed","dotted"], group="Estilo")
+
+// ─────────────────────────────────────────────
+// DETECTAR TICKER ACTIVO
+// ─────────────────────────────────────────────
+sym = syminfo.ticker
+
+// ─────────────────────────────────────────────
+// LEER DATA DESDE GITHUB VIA request.seed()
+// Repo: rikoinvestfg-collab/tv-levels-feed
+// Archivo: data/{TICKER}.csv
+// Columnas: timestamp, gamma_flip, max_pain, call_wall, put_wall
+// ─────────────────────────────────────────────
+
+// Helper: lee una columna numérica del seed
+// request.seed(repoPath, ticker, column) → series float
+gamma_flip_raw = request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "gamma_flip")
+max_pain_raw   = request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "max_pain")
+call_wall_raw  = request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "call_wall")
+put_wall_raw   = request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "put_wall")
+
+// Usar último valor conocido (el CSV solo tiene 1 fila, siempre la última)
+gamma_flip = nz(gamma_flip_raw, na)
+max_pain   = nz(max_pain_raw,   na)
+call_wall  = nz(call_wall_raw,  na)
+put_wall   = nz(put_wall_raw,   na)
+
+// ─────────────────────────────────────────────
+// ESTILO DE LÍNEA
+// ─────────────────────────────────────────────
+line_style = line_style_input == "dashed" ? line.style_dashed :
+             line_style_input == "dotted" ? line.style_dotted :
+             line.style_solid
+
+// ─────────────────────────────────────────────
+// DIBUJAR LÍNEAS HORIZONTALES
+// Solo en la última barra para no duplicar
+// ─────────────────────────────────────────────
+var line ln_gf = na
+var line ln_mp = na
+var line ln_cw = na
+var line ln_pw = na
+
+if barstate.islast
+    // Limpiar líneas anteriores
+    if not na(ln_gf) 
+        line.delete(ln_gf)
+    if not na(ln_mp)
+        line.delete(ln_mp)
+    if not na(ln_cw)
+        line.delete(ln_cw)
+    if not na(ln_pw)
+        line.delete(ln_pw)
+
+    bar_start = bar_index - 50  // líneas se extienden 50 barras hacia atrás
+
+    if show_gamma_flip and not na(gamma_flip)
+        ln_gf := line.new(bar_start, gamma_flip, bar_index + 20, gamma_flip,
+             color=col_gamma_flip, width=line_width, style=line_style, extend=extend.right)
+        label.new(bar_index + 5, gamma_flip, "⚡ Gamma Flip: " + str.tostring(gamma_flip, "#.##"),
+             color=color.new(col_gamma_flip, 85), textcolor=col_gamma_flip,
+             style=label.style_label_left, size=size.small)
+
+    if show_max_pain and not na(max_pain)
+        ln_mp := line.new(bar_start, max_pain, bar_index + 20, max_pain,
+             color=col_max_pain, width=line_width, style=line_style, extend=extend.right)
+        label.new(bar_index + 5, max_pain, "🎯 Max Pain: " + str.tostring(max_pain, "#.##"),
+             color=color.new(col_max_pain, 85), textcolor=col_max_pain,
+             style=label.style_label_left, size=size.small)
+
+    if show_call_wall and not na(call_wall)
+        ln_cw := line.new(bar_start, call_wall, bar_index + 20, call_wall,
+             color=col_call_wall, width=line_width, style=line_style, extend=extend.right)
+        label.new(bar_index + 5, call_wall, "📈 Call Wall: " + str.tostring(call_wall, "#.##"),
+             color=color.new(col_call_wall, 85), textcolor=col_call_wall,
+             style=label.style_label_left, size=size.small)
+
+    if show_put_wall and not na(put_wall)
+        ln_pw := line.new(bar_start, put_wall, bar_index + 20, put_wall,
+             color=col_put_wall, width=line_width, style=line_style, extend=extend.right)
+        label.new(bar_index + 5, put_wall, "📉 Put Wall: " + str.tostring(put_wall, "#.##"),
+             color=color.new(col_put_wall, 85), textcolor=col_put_wall,
+             style=label.style_label_left, size=size.small)
+
+// ─────────────────────────────────────────────
+// TABLA DE NIVELES (esquina del chart)
+// ─────────────────────────────────────────────
+tbl_pos = table_position == "top_right"    ? position.top_right    :
+          table_position == "top_left"     ? position.top_left     :
+          table_position == "bottom_right" ? position.bottom_right :
+          position.bottom_left
+
+var table tbl = na
+
+if barstate.islast and show_table
+    if not na(tbl)
+        table.delete(tbl)
+
+    tbl := table.new(tbl_pos, 2, 6,
+         bgcolor=color.new(#0D1117, 10),
+         border_color=color.new(#30363D, 0),
+         border_width=1, frame_color=color.new(#30363D,0), frame_width=1)
+
+    // Header
+    table.cell(tbl, 0, 0, "⚙ OptionFlow Levels", text_color=color.new(#FFFFFF, 0),
+         bgcolor=color.new(#161B22, 0), text_size=size.small, text_halign=text.align_center, colspan=2)
+
+    // Ticker row
+    table.cell(tbl, 0, 1, "Ticker", text_color=color.new(#8B949E, 0),
+         bgcolor=color.new(#0D1117, 0), text_size=size.small)
+    table.cell(tbl, 1, 1, sym, text_color=color.new(#58A6FF, 0),
+         bgcolor=color.new(#0D1117, 0), text_size=size.small, text_halign=text.align_right)
+
+    // Gamma Flip
+    gf_str = not na(gamma_flip) ? str.tostring(gamma_flip, "#.##") : "—"
+    table.cell(tbl, 0, 2, "⚡ Gamma Flip", text_color=color.new(#8B949E, 0),
+         bgcolor=color.new(#0D1117, 0), text_size=size.small)
+    table.cell(tbl, 1, 2, gf_str, text_color=col_gamma_flip,
+         bgcolor=color.new(#0D1117, 0), text_size=size.small, text_halign=text.align_right)
+
+    // Max Pain
+    mp_str = not na(max_pain) ? str.tostring(max_pain, "#.##") : "—"
+    table.cell(tbl, 0, 3, "🎯 Max Pain", text_color=color.new(#8B949E, 0),
+         bgcolor=color.new(#0D1117, 0), text_size=size.small)
+    table.cell(tbl, 1, 3, mp_str, text_color=col_max_pain,
+         bgcolor=color.new(#0D1117, 0), text_size=size.small, text_halign=text.align_right)
+
+    // Call Wall
+    cw_str = not na(call_wall) ? str.tostring(call_wall, "#.##") : "—"
+    table.cell(tbl, 0, 4, "📈 Call Wall", text_color=color.new(#8B949E, 0),
+         bgcolor=color.new(#0D1117, 0), text_size=size.small)
+    table.cell(tbl, 1, 4, cw_str, text_color=col_call_wall,
+         bgcolor=color.new(#0D1117, 0), text_size=size.small, text_halign=text.align_right)
+
+    // Put Wall
+    pw_str = not na(put_wall) ? str.tostring(put_wall, "#.##") : "—"
+    table.cell(tbl, 0, 5, "📉 Put Wall", text_color=color.new(#8B949E, 0),
+         bgcolor=color.new(#0D1117, 0), text_size=size.small)
+    table.cell(tbl, 1, 5, pw_str, text_color=col_put_wall,
+         bgcolor=color.new(#0D1117, 0), text_size=size.small, text_halign=text.align_right)
+
+// ─────────────────────────────────────────────
+// ALERTAS AUTOMÁTICAS — precio cruza niveles clave
+// ─────────────────────────────────────────────
+alertcondition(ta.cross(close, gamma_flip), "Cruce Gamma Flip",  "⚡ {{ticker}} cruzó el Gamma Flip en {{close}}")
+alertcondition(ta.cross(close, max_pain),   "Cruce Max Pain",    "🎯 {{ticker}} cruzó el Max Pain en {{close}}")
+alertcondition(ta.cross(close, call_wall),  "Cruce Call Wall",   "📈 {{ticker}} cruzó el Call Wall en {{close}}")
+alertcondition(ta.cross(close, put_wall),   "Cruce Put Wall",    "📉 {{ticker}} cruzó el Put Wall en {{close}}")
+
+// Alerta: precio POR DEBAJO del Gamma Flip (bearish zone)
+alertcondition(close < gamma_flip, "Bajo Gamma Flip (Bearish)", "⚠️ {{ticker}} está BAJO el Gamma Flip — zona bearish")
+// Alerta: precio POR ENCIMA del Gamma Flip (bullish zone)
+alertcondition(close > gamma_flip, "Sobre Gamma Flip (Bullish)", "✅ {{ticker}} está SOBRE el Gamma Flip — zona bullish")
+
+// ─────────────────────────────────────────────
+// COLOREAR FONDO SEGÚN ZONA
+// Verde translúcido = sobre Gamma Flip (dealers compran dips)
+// Rojo translúcido  = bajo Gamma Flip  (dealers venden rallies)
+// ─────────────────────────────────────────────
+bgcolor(not na(gamma_flip) and close > gamma_flip ? color.new(color.green, 96) :
+        not na(gamma_flip) and close < gamma_flip ? color.new(color.red,   96) : na,
+        title="Zona Gamma Flip")
