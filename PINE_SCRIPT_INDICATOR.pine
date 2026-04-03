@@ -1,6 +1,7 @@
 // ============================================================
 // OptionFlow Key Levels — by rikoinvestfg
 // Gamma Flip | Max Pain | Call Wall | Put Wall
+// Alertas inteligentes de confluencia alcista/bajista
 // Data auto-updated every 5 min from OptionFlow Dashboard
 // Compatible: TradingView Premium (request.seed required)
 // ============================================================
@@ -24,6 +25,9 @@ col_put_wall     = input.color(color.new(#F44336, 0),  "Color Put Wall",    grou
 line_width       = input.int(2, "Grosor de Lineas", minval=1, maxval=4, group="Estilo")
 line_style_input = input.string("solid", "Estilo de Linea", options=["solid","dashed","dotted"], group="Estilo")
 
+// Configuracion de confluencia
+conf_pct = input.float(0.3, "Proximidad a nivel (%)", minval=0.05, maxval=2.0, step=0.05, group="Confluencia", tooltip="Distancia maxima al nivel para considerar 'toque' (ej: 0.3 = 0.3% del precio)")
+
 // ─────────────────────────────────────────────
 // TICKER ACTIVO
 // ─────────────────────────────────────────────
@@ -31,18 +35,73 @@ sym = syminfo.ticker
 
 // ─────────────────────────────────────────────
 // LEER DATA DESDE GITHUB VIA request.seed()
-// request.seed devuelve series<string> en Pine v6
 // ─────────────────────────────────────────────
 gamma_flip_str = request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "gamma_flip")
 max_pain_str   = request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "max_pain")
 call_wall_str  = request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "call_wall")
 put_wall_str   = request.seed("rikoinvestfg-collab/tv-levels-feed", sym, "put_wall")
 
-// Convertir string -> float
 gamma_flip = str.tonumber(gamma_flip_str)
 max_pain   = str.tonumber(max_pain_str)
 call_wall  = str.tonumber(call_wall_str)
 put_wall   = str.tonumber(put_wall_str)
+
+// ─────────────────────────────────────────────
+// LOGICA DE CONFLUENCIA
+// "cerca de un nivel" = precio dentro del % configurado
+// ─────────────────────────────────────────────
+pct = conf_pct / 100
+
+near_gamma_flip = not na(gamma_flip) and math.abs(close - gamma_flip) / gamma_flip <= pct
+near_max_pain   = not na(max_pain)   and math.abs(close - max_pain)   / max_pain   <= pct
+near_call_wall  = not na(call_wall)  and math.abs(close - call_wall)  / call_wall  <= pct
+near_put_wall   = not na(put_wall)   and math.abs(close - put_wall)   / put_wall   <= pct
+
+above_gamma = not na(gamma_flip) and close > gamma_flip
+below_gamma = not na(gamma_flip) and close < gamma_flip
+
+// Puntuacion de confluencia alcista (0-4 puntos)
+// +1 por cada condicion alcista cumplida
+bull_score = (above_gamma ? 1 : 0) + (near_put_wall and above_gamma ? 1 : 0) + (close > max_pain and not na(max_pain) ? 1 : 0) + (near_gamma_flip and above_gamma ? 1 : 0)
+
+// Puntuacion de confluencia bajista (0-4 puntos)
+bear_score = (below_gamma ? 1 : 0) + (near_call_wall and below_gamma ? 1 : 0) + (close < max_pain and not na(max_pain) ? 1 : 0) + (near_gamma_flip and below_gamma ? 1 : 0)
+
+// Señal de confluencia fuerte (3 o mas puntos)
+bull_signal = bull_score >= 3
+bear_signal = bear_score >= 3
+
+// Detectar cambio de señal (nueva confluencia — no repetir en cada barra)
+bull_trigger = bull_signal and not bull_signal[1]
+bear_trigger = bear_signal and not bear_signal[1]
+
+// Cruce del Gamma Flip (momento exacto de cambio de regimen)
+cross_above_gf = ta.crossover(close,  gamma_flip)
+cross_below_gf = ta.crossunder(close, gamma_flip)
+
+// Precio rebota desde Put Wall (toca y sube)
+bounce_put_wall  = not na(put_wall)  and low <= put_wall  * (1 + pct) and close > open
+// Precio rechaza desde Call Wall (toca y baja)
+reject_call_wall = not na(call_wall) and high >= call_wall * (1 - pct) and close < open
+
+// ─────────────────────────────────────────────
+// SEÑALES VISUALES EN EL CHART
+// ─────────────────────────────────────────────
+
+// Flecha alcista cuando confluencia bullish
+plotshape(bull_trigger, title="Confluencia Alcista", style=shape.triangleup, location=location.belowbar, color=color.new(color.lime, 0), size=size.small, text="BULL", textcolor=color.lime)
+
+// Flecha bajista cuando confluencia bearish
+plotshape(bear_trigger, title="Confluencia Bajista", style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), size=size.small, text="BEAR", textcolor=color.red)
+
+// Triangulo pequeno en cruce del Gamma Flip
+plotshape(cross_above_gf, title="Cruce GF Arriba", style=shape.circle, location=location.belowbar, color=color.new(#FF9800, 0), size=size.tiny, text="GF+", textcolor=#FF9800)
+plotshape(cross_below_gf, title="Cruce GF Abajo",  style=shape.circle, location=location.abovebar,  color=color.new(#FF9800, 0), size=size.tiny, text="GF-", textcolor=#FF9800)
+
+// Rebote en Put Wall
+plotshape(bounce_put_wall,  title="Rebote Put Wall",  style=shape.labelup,   location=location.belowbar, color=color.new(color.green, 30), size=size.tiny, text="PW", textcolor=color.white)
+// Rechazo en Call Wall
+plotshape(reject_call_wall, title="Rechazo Call Wall", style=shape.labeldown, location=location.abovebar,  color=color.new(color.blue,  30), size=size.tiny, text="CW", textcolor=color.white)
 
 // ─────────────────────────────────────────────
 // ESTILO DE LINEA
@@ -50,7 +109,7 @@ put_wall   = str.tonumber(put_wall_str)
 line_style = line_style_input == "dashed" ? line.style_dashed : line_style_input == "dotted" ? line.style_dotted : line.style_solid
 
 // ─────────────────────────────────────────────
-// DIBUJAR LINEAS HORIZONTALES (solo en última barra)
+// DIBUJAR LINEAS HORIZONTALES
 // ─────────────────────────────────────────────
 var line ln_gf = na
 var line ln_mp = na
@@ -86,7 +145,7 @@ if barstate.islast
         label.new(bar_index + 5, put_wall, "Put Wall: " + str.tostring(put_wall, "#.##"), color=color.new(col_put_wall, 85), textcolor=col_put_wall, style=label.style_label_left, size=size.small)
 
 // ─────────────────────────────────────────────
-// TABLA DE NIVELES
+// TABLA DE NIVELES + CONFLUENCIA
 // ─────────────────────────────────────────────
 tbl_pos = table_position == "top_right" ? position.top_right : table_position == "top_left" ? position.top_left : table_position == "bottom_right" ? position.bottom_right : position.bottom_left
 
@@ -96,9 +155,9 @@ if barstate.islast and show_table
     if not na(tbl)
         table.delete(tbl)
 
-    tbl := table.new(tbl_pos, 2, 6, bgcolor=color.new(#0D1117, 10), border_color=color.new(#30363D, 0), border_width=1, frame_color=color.new(#30363D, 0), frame_width=1)
+    tbl := table.new(tbl_pos, 2, 8, bgcolor=color.new(#0D1117, 10), border_color=color.new(#30363D, 0), border_width=1, frame_color=color.new(#30363D, 0), frame_width=1)
 
-    // Header (sin colspan — no soportado en v6)
+    // Header
     table.cell(tbl, 0, 0, "OptionFlow Levels", text_color=color.new(#FFFFFF, 0), bgcolor=color.new(#161B22, 0), text_size=size.small, text_halign=text.align_center)
     table.cell(tbl, 1, 0, sym,                 text_color=color.new(#58A6FF, 0), bgcolor=color.new(#161B22, 0), text_size=size.small, text_halign=text.align_right)
 
@@ -122,22 +181,42 @@ if barstate.islast and show_table
     table.cell(tbl, 0, 4, "Put Wall", text_color=color.new(#8B949E, 0), bgcolor=color.new(#0D1117, 0), text_size=size.small)
     table.cell(tbl, 1, 4, pw_str,     text_color=col_put_wall,           bgcolor=color.new(#0D1117, 0), text_size=size.small, text_halign=text.align_right)
 
-    // Update time
-    table.cell(tbl, 0, 5, "Update",   text_color=color.new(#555555, 0), bgcolor=color.new(#0D1117, 0), text_size=size.tiny)
-    table.cell(tbl, 1, 5, "5 min",    text_color=color.new(#555555, 0), bgcolor=color.new(#0D1117, 0), text_size=size.tiny, text_halign=text.align_right)
+    // Separador
+    table.cell(tbl, 0, 5, "──────", text_color=color.new(#30363D, 0), bgcolor=color.new(#0D1117, 0), text_size=size.tiny)
+    table.cell(tbl, 1, 5, "──────", text_color=color.new(#30363D, 0), bgcolor=color.new(#0D1117, 0), text_size=size.tiny)
+
+    // Bias / Confluencia
+    bias_label = bull_signal ? "ALCISTA" : bear_signal ? "BAJISTA" : above_gamma ? "Neutral+" : "Neutral-"
+    bias_color = bull_signal ? color.new(color.lime, 0) : bear_signal ? color.new(color.red, 0) : above_gamma ? color.new(color.green, 40) : color.new(color.red, 40)
+    score_str  = bull_signal ? str.tostring(bull_score) + "/4" : str.tostring(bear_score) + "/4"
+
+    table.cell(tbl, 0, 6, "Bias",     text_color=color.new(#8B949E, 0), bgcolor=color.new(#0D1117, 0), text_size=size.small)
+    table.cell(tbl, 1, 6, bias_label, text_color=bias_color,            bgcolor=color.new(#0D1117, 0), text_size=size.small, text_halign=text.align_right)
+
+    table.cell(tbl, 0, 7, "Score",    text_color=color.new(#8B949E, 0), bgcolor=color.new(#0D1117, 0), text_size=size.small)
+    table.cell(tbl, 1, 7, score_str,  text_color=bias_color,            bgcolor=color.new(#0D1117, 0), text_size=size.small, text_halign=text.align_right)
 
 // ─────────────────────────────────────────────
-// FONDO: zona bullish/bearish respecto al Gamma Flip
+// FONDO: zona bullish/bearish
 // ─────────────────────────────────────────────
 bg_color = not na(gamma_flip) and close > gamma_flip ? color.new(color.green, 96) : not na(gamma_flip) and close < gamma_flip ? color.new(color.red, 96) : na
 bgcolor(bg_color, title="Zona Gamma Flip")
 
 // ─────────────────────────────────────────────
-// ALERTAS
+// ALERTAS — CONFLUENCIA INTELIGENTE
 // ─────────────────────────────────────────────
-alertcondition(ta.cross(close, gamma_flip), "Cruce Gamma Flip", "{{ticker}} cruzo el Gamma Flip en {{close}}")
-alertcondition(ta.cross(close, max_pain),   "Cruce Max Pain",   "{{ticker}} cruzo el Max Pain en {{close}}")
-alertcondition(ta.cross(close, call_wall),  "Cruce Call Wall",  "{{ticker}} cruzo el Call Wall en {{close}}")
-alertcondition(ta.cross(close, put_wall),   "Cruce Put Wall",   "{{ticker}} cruzo el Put Wall en {{close}}")
-alertcondition(close < gamma_flip, "Bajo Gamma Flip (Bearish)", "{{ticker}} esta BAJO el Gamma Flip")
-alertcondition(close > gamma_flip, "Sobre Gamma Flip (Bullish)", "{{ticker}} esta SOBRE el Gamma Flip")
+
+// Alertas de confluencia (3+ condiciones cumplidas simultaneamente)
+alertcondition(bull_trigger, "CONFLUENCIA ALCISTA", "ALCISTA {{ticker}} — Score " + str.tostring(bull_score) + "/4 | Precio: {{close}} | GammaFlip: " + gamma_flip_str + " | PutWall: " + put_wall_str)
+alertcondition(bear_trigger, "CONFLUENCIA BAJISTA", "BAJISTA {{ticker}} — Score " + str.tostring(bear_score) + "/4 | Precio: {{close}} | GammaFlip: " + gamma_flip_str + " | CallWall: " + call_wall_str)
+
+// Alertas de cruce del Gamma Flip (cambio de regimen)
+alertcondition(cross_above_gf, "Rompe Gamma Flip Arriba", "{{ticker}} ROMPE el Gamma Flip al ALZA en {{close}} — Dealers pasan a comprar dips")
+alertcondition(cross_below_gf, "Rompe Gamma Flip Abajo",  "{{ticker}} ROMPE el Gamma Flip a la BAJA en {{close}} — Dealers pasan a vender rallies")
+
+// Alertas de rebote/rechazo en muros
+alertcondition(bounce_put_wall,  "Rebote en Put Wall",   "{{ticker}} REBOTA en Put Wall (" + put_wall_str  + ") — posible movimiento ALCISTA")
+alertcondition(reject_call_wall, "Rechazo en Call Wall", "{{ticker}} RECHAZA en Call Wall (" + call_wall_str + ") — posible movimiento BAJISTA")
+
+// Alertas de cruces de niveles individuales
+alertcondition(ta.cross(close, max_pain), "Cruce Max Pain", "{{ticker}} cruzo el Max Pain en {{close}}")
